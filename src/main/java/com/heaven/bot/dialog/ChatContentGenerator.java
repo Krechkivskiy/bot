@@ -132,9 +132,7 @@ public class ChatContentGenerator {
         for (Product content : basket) {
             String image = "/image-not-found.PNG";
             if (content.getPicture() != null) {
-                if (content.getPrice() != null) {
                     image = content.getPicture();
-                }
             }
             richMedia.addButton(new ViberButton(content.getId()).setActionType(BtnActionType.NONE)
                     .setImage(content.getPicture())
