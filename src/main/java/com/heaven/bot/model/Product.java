@@ -1,6 +1,11 @@
 package com.heaven.bot.model;
 
-import javax.persistence.*;
+import javax.persistence.Column;
+import javax.persistence.Entity;
+import javax.persistence.FetchType;
+import javax.persistence.Id;
+import javax.persistence.ManyToMany;
+import javax.persistence.Table;
 import java.util.List;
 import java.util.Objects;
 
@@ -22,9 +27,6 @@ public class Product {
 
     @Column
     private String role;
-
-    @Column(name = "price")
-    private Long price;
 
     private String day;
 
@@ -50,14 +52,6 @@ public class Product {
 
     public void setPicture(String picture) {
         this.picture = picture;
-    }
-
-    public Long getPrice() {
-        return price;
-    }
-
-    public void setPrice(Long price) {
-        this.price = price;
     }
 
     public String getRole() {

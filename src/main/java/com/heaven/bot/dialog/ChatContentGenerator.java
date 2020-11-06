@@ -80,10 +80,9 @@ public class ChatContentGenerator {
         if (count == null) {
             count = 0l;
         }
-        result.setButtonsGroupColumns(6).
+        result.setButtonsGroupColumns(products.size()).
                 setButtonsGroupRows(products.size() + 1);
         String basketBody = createProductActionBody(ChatSteps.STEP_BASKET, ChatSteps.PRESSED_BUTTON, ChatSteps.PRESSED_BUTTON);
-        String changeCountBody = createProductActionBody(ChatSteps.STEP_BASKET, ChatSteps.SHOW_FULL_INFO_ABOUT_PRODUCT);
         for (Product product : products) {
             String productActionBody = createProductActionBody(ChatSteps.BASKET_MENU,
                     product.getId(),
@@ -93,8 +92,6 @@ public class ChatContentGenerator {
                     .addButton(new ViberButton(productActionBody).setRows(1).setColumns(3).setText(product.getName()))
                     .addButton(new ViberButton(delete).setText("Видалити").setRows(1).setColumns(3));
         }
-        result.addButton(new ViberButton(changeCountBody).setText("Змінити кількість(" + count + ")")
-                .setRows(1).setColumns(6));
         result.addButton(new ViberButton(basketBody).
                 setText("Назад").
                 setBgColor("").
@@ -267,11 +264,11 @@ public class ChatContentGenerator {
                 .setActionType(BtnActionType.NONE)
                 .setColumns(WIDTH).setRows(1)
         );
-        richMedia.addButton(new ViberButton(content.getId())
-                .setText("<font color=#323232><b>" + content.getName() + " </b></font>")
-                .setActionType(BtnActionType.NONE)
-                .setColumns(WIDTH).setRows(1)
-        );
+//        richMedia.addButton(new ViberButton(content.getId())
+//                .setText("<font color=#323232><b>" + content.getName() + " </b></font>")
+//                .setActionType(BtnActionType.NONE)
+//                .setColumns(WIDTH).setRows(1)
+//        );
         return richMedia;
     }
 }

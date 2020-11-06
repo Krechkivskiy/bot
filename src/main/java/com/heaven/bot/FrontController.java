@@ -58,7 +58,7 @@ public class FrontController {
     }
 
 
-    @RequestMapping(method = RequestMethod.POST, path = "/")
+    @RequestMapping(method = RequestMethod.POST, path = "/bot")
     ResponseEntity<?> callbackHandle(@RequestBody String text) {
         Incoming incoming = IncomingImpl.fromString(text);
         String userId = incoming.getSenderId();
@@ -100,9 +100,9 @@ public class FrontController {
             case ChatSteps.SHOW_PRODUCT_LIST:
                 return getProductListByType(userId, outgoing, operands[3], user);
             case ChatSteps.BASKET_MENU:
-                return processAddToBasket(userId, outgoing, operands, user);
+                return processBasketMenu(outgoing, operands, user);
             case ChatSteps.STEP_CREATE_ORDER:
-                return processCreateOrder(userId, outgoing, user);
+                return processCreateOrder(outgoing, user);
             case ChatSteps.CONFIRM_DATA:
                 return processConfirmData(userId, outgoing, messageText, user);
             case ChatSteps.EDIT_INFO:
@@ -115,8 +115,6 @@ public class FrontController {
             case ChatSteps.STEP_EDIT_BASKET:
                 outgoing.postText(" ", processBasketEditMenu(userId));
                 return ResponseEntity.ok(HttpStatus.OK);
-            case ChatSteps.CHANGE_COUNT:
-                return processChangeCount(operands[3], outgoing, userId);
             case ChatSteps.REMOVE_FROM_BASKET:
                 outgoing.postText(" ", processRemoveFromBasket(userId, operands[3], user));
                 break;
@@ -151,32 +149,34 @@ public class FrontController {
         return ResponseEntity.ok(HttpStatus.OK);
     }
 
-    private ResponseEntity<HttpStatus> processCreateOrder(String userId, Outgoing outgoing, User user) {
-        Basket basketByUser = basketService.getBasketByUser(new User(userId));
-        if (basketByUser.getCount() != null && basketByUser.getCount() > 0) {
-            if (checkIsComplexOrder(basketByUser)) {
-                if (checkIsFullyRegistered(userId)) {
+    private ResponseEntity<HttpStatus> processCreateOrder(Outgoing outgoing, User user) {
+        Basket basketByUser = basketService.getBasketByUser(new User(user.getId()));
+        if (checkIsComplexOrder(basketByUser)) {
+            if (basketByUser.getCount() != null && basketByUser.getCount() > 0) {
+                if (checkIsFullyRegistered(user.getId())) {
                     String confirmMessage = prepareConfirmAddressMessages(user);
                     ViberKeyboard keyboard = chatContentGenerator.generateConfirmButton(new ViberKeyboard(), null);
                     chatContentGenerator.generateEditButton(keyboard);
                     chatContentGenerator.addBackButtonKeyboard(keyboard);
                     outgoing.postText(confirmMessage, keyboard);
                     generateAndSaveStepForUser(ChatSteps.STEP_CREATE_ORDER,
-                            ChatSteps.PRESSED_BUTTON, null, null, null, userId);
+                            ChatSteps.PRESSED_BUTTON, null, null, null, user.getId());
                     return ResponseEntity.ok(HttpStatus.OK);
                 } else {
                     prepareConfirmOrderMessageForUnregisteredUsers(user, outgoing);
-                    generateAndSaveStepForUser(ChatSteps.STEP_CREATE_ORDER, ChatSteps.PRESSED_BUTTON, null, null, null, userId);
+                    generateAndSaveStepForUser(ChatSteps.STEP_CREATE_ORDER,
+                            ChatSteps.PRESSED_BUTTON, null, null, null, user.getId());
                     return ResponseEntity.ok(HttpStatus.OK);
                 }
             } else {
-                Step step = getLastUserStepWithInfoAboutDayAndProductTypeByUser(userId);
-                ViberKeyboard viberKeyboard = showAllProductTypes(step.getDay(), userId);
-                outgoing.postText(MessagesTemplates.NON_FULLY_BASKET_COMPLETED, viberKeyboard);
+                generateAndSaveStepForUser(ChatSteps.CHANGE_COUNT,
+                        ChatSteps.CHANGE_COUNT, null, null, null, user.getId());
+                outgoing.postText("Введіть кількість порцій", chatContentGenerator.addBackButtonKeyboard(new ViberKeyboard()));
             }
         } else {
-            outgoing.postText("Кількість не може дорівнювати нулю, зміни її",
-                    processBasketEditMenu(userId));
+            Step step = getLastUserStepWithInfoAboutDayAndProductTypeByUser(user.getId());
+            ViberKeyboard viberKeyboard = showAllProductTypes(step.getDay(), user.getId());
+            outgoing.postText(MessagesTemplates.NON_FULLY_BASKET_COMPLETED, viberKeyboard);
         }
         return ResponseEntity.ok(HttpStatus.OK);
     }
@@ -201,20 +201,20 @@ public class FrontController {
         }
     }
 
-    private ResponseEntity<?> processAddToBasket(String userId, Outgoing outgoing, String[] operands, User user) {
+    private ResponseEntity<?> processBasketMenu(Outgoing outgoing, String[] operands, User user) {
         if (Arrays.asList(operands).contains(ChatSteps.ADD_TO_BASKET)) {
-            return processAddToBasket(user, operands[3], outgoing);
+            return processBasketMenu(user, operands[3], outgoing);
         } else if (Arrays.asList(operands).contains(ChatSteps.SHOW_FULL_INFO_ABOUT_PRODUCT)) {
             if (stepService.findLastUserAction(user).get().getStep().equals(ChatSteps.STEP_BASKET)) {
                 RichMedia detailedProductMessage = chatContentGenerator.createDetailedProductMessage(productService.findById(operands[3]));
-                ViberKeyboard viberKeyboard = processBasketEditMenu(basketService.getBasketByUser(user).getId().toString());
+                ViberKeyboard viberKeyboard = processBasketEditMenu(user.getId());
                 outgoing.postCarousel(detailedProductMessage, viberKeyboard);
                 return ResponseEntity.ok(HttpStatus.OK);
             } else {
                 RichMedia detailedProductMessage = chatContentGenerator.createDetailedProductMessage(productService.findById(operands[3]));
                 Step step = stepService
                         .findLastUserActionByType(user, ChatSteps.SHOW_ALL_PRODUCTS_BY_ROLE_AND_DAY).get();
-                List<Product> products = processProductsByDayAndType(step.getDay(), step.getProductType2(), userId);
+                List<Product> products = processProductsByDayAndType(step.getDay(), step.getProductType2(), user.getId());
                 outgoing.postCarousel(detailedProductMessage);
                 showAllDaysProducts(outgoing, user, products);
                 return ResponseEntity.ok(HttpStatus.OK);
@@ -279,7 +279,7 @@ public class FrontController {
             } else if (lastUserAction.getStep().equals(ChatSteps.CHANGE_COUNT)) {
                 try {
                     basketService.setCount(userId, Long.valueOf(messageText));
-                    outgoing.postText(" ", processBasketEditMenu(userId));
+                    processCreateOrder(outgoing, new User(userId));
                     generateAndSaveStepForUser(ChatSteps.STEP_BASKET,
                             ChatSteps.CHANGE_COUNT, null, null, null, userId);
                 } catch (Exception e) {
@@ -288,12 +288,16 @@ public class FrontController {
                 }
             }
         } else {
-            boolean isFullyRegistered = checkIsFullyRegistered(userId);
-            if (isFullyRegistered) {
-                outgoing.postText(" ", chatContentGenerator.generateStartMenuForRegisteredUser());
-                return ResponseEntity.ok(HttpStatus.OK);
+            if (checkIsFirstComeToBot(userId)) {
+
+                if (checkIsFullyRegistered(userId)) {
+                    outgoing.postText(" ", chatContentGenerator.generateStartMenuForRegisteredUser());
+                    return ResponseEntity.ok(HttpStatus.OK);
+                } else {
+                    outgoing.postText(" ", chatContentGenerator.generateStartMenu());
+                }
             } else {
-                outgoing.postText(" ", chatContentGenerator.generateStartMenu());
+                outgoing.postText(MessagesTemplates.GREETING, chatContentGenerator.generateStartMenu());
             }
         }
         return ResponseEntity.ok(HttpStatus.OK);
@@ -301,8 +305,8 @@ public class FrontController {
 
 
     private ResponseEntity<HttpStatus> processChangeCount(String operand, Outgoing outgoing, String userId) {
-        generateAndSaveStepForUser(ChatSteps.CHANGE_COUNT, operand, null, null, null, userId);
         outgoing.postText("Введіть кількість", chatContentGenerator.addBackButtonKeyboard(new ViberKeyboard()));
+
         return ResponseEntity.ok(HttpStatus.OK);
     }
 
@@ -533,7 +537,7 @@ public class FrontController {
         return ResponseEntity.ok(null);
     }
 
-    private ResponseEntity<?> processAddToBasket(User user, String productId, Outgoing outgoing) {
+    private ResponseEntity<?> processBasketMenu(User user, String productId, Outgoing outgoing) {
         basketService.addProduct(productService.findById(productId), user);
         Step last = getLastUserStepWithInfoAboutDayAndProductTypeByUser(user.getId());
         getProductListByType(user.getId(), outgoing, last.getProductType(), user);
